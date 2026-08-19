@@ -6,41 +6,61 @@ pool:
 
 steps:
 
-# Install .NET 10 SDK
+# 1. Checkout GitHub repository
+- checkout: self
+
+# 2. Install .NET 10 SDK
 - task: UseDotNet@2
   displayName: 'Install .NET 10 SDK'
   inputs:
     packageType: 'sdk'
     version: '10.x'
 
-# Restore NuGet packages
-- task: DotNetCoreCLI@2
+# 3. Verify repository structure
+- script: |
+    echo "Build Sources Directory:"
+    echo "$(Build.SourcesDirectory)"
+
+    echo "Repository files:"
+    find "$(Build.SourcesDirectory)" -maxdepth 3 -type f | sort
+
+    echo "Checking project file:"
+    ls -l "$(Build.SourcesDirectory)/DemoDockerAPI/DemoDockerAPI.csproj"
+  displayName: 'Verify project files'
+
+# 4. Restore
+- script: |
+    dotnet restore "$(Build.SourcesDirectory)/DemoDockerAPI/DemoDockerAPI.csproj"
   displayName: 'Restore NuGet packages'
-  inputs:
-    command: 'restore'
-    projects: 'DemoDockerAPI/DemoDockerAPI/*.csproj'
 
-# Build the application
-- task: DotNetCoreCLI@2
+# 5. Build
+- script: |
+    dotnet build "$(Build.SourcesDirectory)/DemoDockerAPI/DemoDockerAPI.csproj" \
+      --configuration Release \
+      --no-restore
   displayName: 'Build'
-  inputs:
-    command: 'build'
-    projects: 'DemoDockerAPI/DemoDockerAPI/*.csproj'
-    arguments: '--configuration Release --no-restore'
 
-# Publish the application
-- task: DotNetCoreCLI@2
+# 6. Publish
+- script: |
+    dotnet publish "$(Build.SourcesDirectory)/DemoDockerAPI/DemoDockerAPI.csproj" \
+      --configuration Release \
+      --output "$(Build.ArtifactStagingDirectory)/publish"
   displayName: 'Publish'
-  inputs:
-    command: 'publish'
-    projects: 'DemoDockerAPI/DemoDockerAPI/*.csproj'
-    arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/publish'
-    zipAfterPublish: true
 
-# Publish the build artifact
+# 7. Zip published application
+- task: ArchiveFiles@2
+  displayName: 'Create deployment ZIP'
+  inputs:
+    rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/publish'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/DemoDockerAPI.zip'
+    replaceExistingArchive: true
+
+# 8. Publish artifact
 - task: PublishBuildArtifacts@1
   displayName: 'Publish Build Artifact'
   inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)/publish'
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/DemoDockerAPI.zip'
     ArtifactName: 'drop'
     publishLocation: 'Container'
